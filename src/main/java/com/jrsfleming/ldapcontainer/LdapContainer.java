@@ -2,7 +2,6 @@ package com.jrsfleming.ldapcontainer;
 
 import org.rnorth.ducttape.unreliables.Unreliables;
 import org.testcontainers.containers.GenericContainer;
-import org.testcontainers.containers.startupcheck.StartupCheckStrategy;
 import org.testcontainers.containers.wait.strategy.AbstractWaitStrategy;
 import org.testcontainers.utility.DockerImageName;
 
@@ -35,15 +34,8 @@ public class LdapContainer extends GenericContainer<LdapContainer> {
         @Override
         protected void waitUntilReady() {
             Unreliables.retryUntilSuccess((int) startupTimeout.getSeconds(), TimeUnit.SECONDS, () -> {
-                Hashtable<String, String> env = new Hashtable<>();
-                env.put(Context.INITIAL_CONTEXT_FACTORY, "com.sun.jndi.ldap.LdapCtxFactory");
-                env.put(Context.PROVIDER_URL, LdapContainer.this.getLdapUrl());
-                env.put(Context.SECURITY_AUTHENTICATION, "simple");
-                env.put(Context.SECURITY_PRINCIPAL, "cn=" + adminUser + "," + ldapRoot);
-                env.put(Context.SECURITY_CREDENTIALS, adminPassword);
-
                 try {
-                    new InitialDirContext(env);
+                    getAdminContext().close();
                     return Void.TYPE;
                 } catch (NamingException e) {
                     throw new RuntimeException(e);
@@ -78,6 +70,16 @@ public class LdapContainer extends GenericContainer<LdapContainer> {
 
     public String getAdminPassword() {
         return adminPassword;
+    }
+
+    public InitialDirContext getAdminContext() throws NamingException {
+        Hashtable<String, String> env = new Hashtable<>();
+        env.put(Context.INITIAL_CONTEXT_FACTORY, "com.sun.jndi.ldap.LdapCtxFactory");
+        env.put(Context.PROVIDER_URL, getLdapUrl());
+        env.put(Context.SECURITY_AUTHENTICATION, "simple");
+        env.put(Context.SECURITY_PRINCIPAL, getAdminUserDn());
+        env.put(Context.SECURITY_CREDENTIALS, getAdminPassword());
+        return new InitialDirContext(env);
     }
 
 

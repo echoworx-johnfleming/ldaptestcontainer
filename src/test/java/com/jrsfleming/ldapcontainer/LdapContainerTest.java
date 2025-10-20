@@ -29,7 +29,20 @@ public class LdapContainerTest {
     private Path tempFolder;
 
 
+    @Test
+    public void testGetAdminContext() throws NamingException {
+        try (LdapContainer ldapContainer = new LdapContainer()) {
+            ldapContainer.start();
 
+            DirContext adminContext = ldapContainer.getAdminContext();
+            SearchControls searchControls = new SearchControls();
+            searchControls.setSearchScope(SearchControls.SUBTREE_SCOPE);
+            NamingEnumeration<SearchResult> results = adminContext.search("dc=example,dc=org", "(objectClass=*)", searchControls);
+            assertTrue(results.hasMore());
+
+            adminContext.close();
+        }
+    }
 
     @Test
     public void testLdapConnection() throws Exception {
