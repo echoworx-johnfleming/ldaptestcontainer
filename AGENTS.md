@@ -2,6 +2,17 @@
 
 This document outlines the steps to run this project's tests using Testcontainers with Podman as the container runtime.
 
+## IMPORTANT: Docker Hub Authentication
+
+The tests in this project rely on Docker images that are subject to Docker Hub's pull rate limits. To avoid test failures due to these limits, you **must** authenticate with Docker Hub.
+
+Provide your Docker Hub credentials via the following environment variables:
+
+-   `DOCKER_HUB_USER`: Your Docker Hub username.
+-   `DOCKER_HUB_PASSWORD`: Your Docker Hub password or Personal Access Token (PAT).
+
+The agent will use these credentials to authenticate `podman` before running the tests.
+
 ## Setup and Test Execution
 
 1.  **Install Podman:**
