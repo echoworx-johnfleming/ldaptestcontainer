@@ -12,6 +12,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
 import java.util.Base64;
 import java.util.Hashtable;
 import java.util.concurrent.TimeUnit;
@@ -27,19 +28,36 @@ public class LdapContainer extends GenericContainer<LdapContainer> {
     public LdapContainer() {
         super(DockerImageName.parse("osixia/openldap:2.6.10-alpha"));
         addExposedPort(LDAP_PORT);
+        updateEnvironment();
+        setWaitStrategy(new LdapConnectionWaitStrategy());
+    }
+
+    private void updateEnvironment() {
         addEnv("OPENLDAP_BOOTSTRAP_DATA_ROOT_PASSWORD_HASHED", hashPassword(adminPassword));
         addEnv("OPENLDAP_BOOTSTRAP_SUFFIX", ldapRoot);
-
-        setWaitStrategy(new LdapConnectionWaitStrategy());
+        addEnv("OPENLDAP_BOOTSTRAP_DATA_ROOT_DN", getAdminUserDn());
+        // Ensure SHA-2 module is loaded for SSHA512 support
+        addEnv("OPENLDAP_BOOTSTRAP_MODULES", "back_mdb.so argon2.so ppolicy.so unique.so refint.so memberof.so syncprov.so pw-sha2.so");
     }
 
     private String hashPassword(String password) {
         try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-1");
-            byte[] hash = digest.digest(password.getBytes(StandardCharsets.UTF_8));
-            return "{SHA}" + Base64.getEncoder().encodeToString(hash);
+            SecureRandom random = new SecureRandom();
+            byte[] salt = new byte[16];
+            random.nextBytes(salt);
+
+            MessageDigest digest = MessageDigest.getInstance("SHA-512");
+            digest.update(password.getBytes(StandardCharsets.UTF_8));
+            digest.update(salt);
+            byte[] hash = digest.digest();
+
+            byte[] hashWithSalt = new byte[hash.length + salt.length];
+            System.arraycopy(hash, 0, hashWithSalt, 0, hash.length);
+            System.arraycopy(salt, 0, hashWithSalt, hash.length, salt.length);
+
+            return "{SSHA512}" + Base64.getEncoder().encodeToString(hashWithSalt);
         } catch (NoSuchAlgorithmException e) {
-            throw new RuntimeException("SHA-1 algorithm not found", e);
+            throw new RuntimeException("SHA-512 algorithm not found", e);
         }
     }
 
@@ -63,6 +81,7 @@ public class LdapContainer extends GenericContainer<LdapContainer> {
 
     public LdapContainer withAdminUser(String adminUser) {
         this.adminUser = adminUser;
+        addEnv("OPENLDAP_BOOTSTRAP_DATA_ROOT_DN", getAdminUserDn());
         return this;
     }
 
@@ -77,7 +96,7 @@ public class LdapContainer extends GenericContainer<LdapContainer> {
     }
 
     public String getAdminUserDn () {
-        return "cn=admin," + ldapRoot;
+        return "cn=" + adminUser + "," + ldapRoot;
     }
 
     public String getAdminPassword() {
